@@ -8,9 +8,6 @@ SEED = 42
 
 
 def _format_timestamp(dt: datetime, fmt_choice: int) -> str:
-    """
-    Format a datetime using one of several intentionally inconsistent formats.
-    """
     if fmt_choice == 0:
         # YYYY-MM-DD
         return dt.strftime("%Y-%m-%d")
@@ -37,24 +34,16 @@ def _format_timestamp(dt: datetime, fmt_choice: int) -> str:
 
 
 def generate_weather_dataset(out_path: str) -> None:
-    """
-    Weather station dataset:
-    - 3,000 rows
-    - Clean internal cadence (every 4 hours) starting 2025-01-01 00:00
-    - Dirty timestamp strings in mixed formats; ~30% date-only (no time)
-    """
     np.random.seed(SEED)
 
     n = 3000
     station_id = "YK-01"
 
     start = datetime(2025, 1, 1, 0, 0)
-    step = timedelta(hours=4)  # keeps the range within ~500 days (into 2026)
+    step = timedelta(hours=4)  
 
     dts = [start + i * step for i in range(n)]
 
-    # Seasonal-ish temperature with noise (northern Canada vibe)
-    # base -12C, seasonal amplitude 18C, plus noise
     temps = []
     for dt in dts:
         day_of_year = dt.timetuple().tm_yday
@@ -68,14 +57,12 @@ def generate_weather_dataset(out_path: str) -> None:
     wind_kmh = np.random.gamma(shape=2.0, scale=4.0, size=n)  # right-skew
     wind_kmh = np.clip(wind_kmh, 0, 40).round(0).astype(int)
 
-    # Timestamp formatting: choose a format per row, plus some date-only rows
     fmt_choices = np.random.randint(0, 6, size=n)  # 0..5 formats
     is_date_only = np.random.rand(n) < 0.30
 
     timestamps = []
     for dt, fmt, date_only in zip(dts, fmt_choices, is_date_only):
         if date_only:
-            # Force a date-only format, mixing '-' and '/' as well
             timestamps.append(dt.strftime("%Y-%m-%d") if (np.random.rand() < 0.6) else dt.strftime("%Y/%m/%d"))
         else:
             timestamps.append(_format_timestamp(dt, int(fmt)))
@@ -92,12 +79,6 @@ def generate_weather_dataset(out_path: str) -> None:
 
 
 def generate_coffee_dataset(out_path: str) -> None:
-    """
-    Coffee dataset:
-    - 100 rows: 50 Engineering, 50 Science
-    - One-sided t-test target: Engineering slightly higher
-    - Includes year for realism
-    """
     np.random.seed(SEED)
 
     n_each = 50
@@ -110,7 +91,6 @@ def generate_coffee_dataset(out_path: str) -> None:
     sci = np.random.normal(loc=2.5, scale=1.0, size=n_each)
     coffee = np.concatenate([eng, sci])
 
-    # Truncate to realistic bounds and round to 0.5 increments
     coffee = np.clip(coffee, 0, 8)
     coffee = np.round(coffee * 2) / 2
 
@@ -125,11 +105,6 @@ def generate_coffee_dataset(out_path: str) -> None:
 
 
 def generate_grades_dataset(out_path: str) -> None:
-    """
-    Grades dataset:
-    - 600 rows total: 200 per course
-    - Different mean/spread; COMM293 slightly left-skewed (more high grades)
-    """
     np.random.seed(SEED)
 
     n_per = 200
