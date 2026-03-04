@@ -2,6 +2,7 @@ import os
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 SEED = 42
@@ -40,9 +41,19 @@ def generate_weather_dataset(out_path: str) -> None:
     station_id = "YK-01"
 
     start = datetime(2025, 1, 1, 0, 0)
-    step = timedelta(hours=4)  
+    step = timedelta(hours=4)
 
-    dts = [start + i * step for i in range(n)]
+    base_dts = [start + i * step for i in range(n)]
+
+    minutes = np.random.randint(0, 60, size=n)
+
+    has_seconds = np.random.rand(n) < 0.25
+    seconds = np.where(has_seconds, np.random.randint(0, 60, size=n), 0)
+
+    dts = [
+        dt.replace(minute=int(m), second=int(s), microsecond=0)
+        for dt, m, s in zip(base_dts, minutes, seconds)
+]
 
     temps = []
     for dt in dts:
@@ -79,6 +90,7 @@ def generate_weather_dataset(out_path: str) -> None:
 
 
 def generate_coffee_dataset(out_path: str) -> None:
+
     np.random.seed(SEED)
 
     n_each = 50
@@ -127,6 +139,129 @@ def generate_grades_dataset(out_path: str) -> None:
     df.to_csv(out_path, index=False)
 
 
+def save_grades_histogram(grades_csv_path: str, out_path: str) -> None:
+    df = pd.read_csv(grades_csv_path)
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+
+    bins = np.arange(0, 101, 5)
+
+    plt.figure(figsize=(10, 6))
+    for course in ["MATH100", "STAT200", "COMM293"]:
+        subset = df.loc[df["course"] == course, "grade"]
+        plt.hist(subset, bins=bins, alpha=0.5, label=course)
+
+    plt.title("Grade Distributions by Course")
+    plt.xlabel("Grade")
+    plt.ylabel("Count")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200)
+    plt.close()
+
+
+
+def save_weather_preview(weather_csv_path: str, out_path: str) -> None:
+    """
+    Useful preview for weather dataset:
+    - temp over time (after parsing timestamps)
+    - makes the dataset feel real and sanity-checks parsing
+    """
+    df = pd.read_csv(weather_csv_path)
+
+    # Robust parse: infer formats; date-only will become midnight here (that's fine for preview)
+    # Participants will do their own "assume noon" logic in the challenge.
+    dt = pd.to_datetime(df["timestamp"], errors="coerce")
+    # second pass for any stragglers (often helps with mixed formats)
+    dt2 = pd.to_datetime(df.loc[dt.isna(), "timestamp"], errors="coerce", format="mixed")
+    dt.loc[dt.isna()] = dt2
+
+    preview = df.copy()
+    preview["parsed_timestamp"] = dt
+    preview = preview.dropna(subset=["parsed_timestamp"]).sort_values("parsed_timestamp")
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(preview["parsed_timestamp"], preview["temp_c"])
+    plt.title("Weather Station Preview: Temperature Over Time (parsed)")
+    plt.xlabel("Time")
+    plt.ylabel("Temperature (°C)")
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200)
+    plt.close()
+
+
+def save_coffee_preview(coffee_csv_path: str, out_path: str) -> None:
+    """
+    Useful preview for coffee dataset:
+    - side-by-side boxplots of coffee by faculty
+    - immediately supports the hypothesis test story
+    """
+    df = pd.read_csv(coffee_csv_path)
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+
+    eng = df.loc[df["faculty"] == "Engineering", "coffee_cups_per_day"]
+    sci = df.loc[df["faculty"] == "Science", "coffee_cups_per_day"]
+
+    plt.figure(figsize=(8, 6))
+    plt.boxplot([eng, sci], labels=["Engineering", "Science"])
+    plt.title("Coffee Consumption by Faculty")
+    plt.ylabel("Coffee (cups/day)")
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200)
+    plt.close()
+
+
+def save_grades_overlay_histogram(grades_csv_path: str, out_path: str) -> None:
+    """
+    Overlay histogram (what you already have conceptually, but as a clearly named function).
+    """
+    df = pd.read_csv(grades_csv_path)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+
+    bins = np.arange(0, 101, 5)
+
+    plt.figure(figsize=(10, 6))
+    for course in ["MATH100", "STAT200", "COMM293"]:
+        subset = df.loc[df["course"] == course, "grade"]
+        plt.hist(subset, bins=bins, alpha=0.5, label=course)
+
+    plt.title("Grade Distributions by Course (Overlay Histogram)")
+    plt.xlabel("Grade")
+    plt.ylabel("Count")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200)
+    plt.close()
+
+
+def save_grades_faceted_histograms(grades_csv_path: str, out_path: str) -> None:
+    """
+    Separate (faceted) histograms: 3 subplots, one per course.
+    Cleaner for comparison and what Riley asked for.
+    """
+    df = pd.read_csv(grades_csv_path)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+
+    bins = np.arange(0, 101, 5)
+    courses = ["MATH100", "STAT200", "COMM293"]
+
+    plt.figure(figsize=(10, 8))
+    for i, course in enumerate(courses, start=1):
+        plt.subplot(3, 1, i)
+        subset = df.loc[df["course"] == course, "grade"]
+        plt.hist(subset, bins=bins)
+        plt.title(course)
+        plt.xlabel("Grade")
+        plt.ylabel("Count")
+
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200)
+    plt.close()
+
+
 def main() -> None:
     os.makedirs("data", exist_ok=True)
 
@@ -134,10 +269,38 @@ def main() -> None:
     generate_coffee_dataset("data/coffee_eng_vs_sci.csv")
     generate_grades_dataset("data/grades_three_courses.csv")
 
-    print("Wrote:")
-    print("- data/weather_station_dirty_timestamps.csv")
-    print("- data/coffee_eng_vs_sci.csv")
-    print("- data/grades_three_courses.csv")
+    # Figures (useful previews for each dataset)
+    os.makedirs("figures", exist_ok=True)
+
+    save_weather_preview(
+        "data/weather_station_dirty_timestamps.csv",
+        "figures/weather_temp_over_time.png"
+    )
+
+    save_coffee_preview(
+        "data/coffee_eng_vs_sci.csv",
+        "figures/coffee_by_faculty_boxplot.png"
+    )
+
+    # Grades: both overlay and faceted histograms
+    save_grades_overlay_histogram(
+        "data/grades_three_courses.csv",
+        "figures/grades_histogram_overlay.png"
+    )
+
+    save_grades_faceted_histograms(
+        "data/grades_three_courses.csv",
+        "figures/grades_histogram_faceted.png"
+    )
+
+    print("- figures/weather_temp_over_time.png")
+    print("- figures/coffee_by_faculty_boxplot.png")
+    print("- figures/grades_histogram_overlay.png")
+    print("- figures/grades_histogram_faceted.png")
+
+    
+
+
 
 
 if __name__ == "__main__":
